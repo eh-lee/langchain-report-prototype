@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server';
-import { ChatOpenAI } from "@langchain/openai";
+import { NextResponse } from "next/server";
+import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { PromptTemplate } from "@langchain/core/prompts";
 import { StringOutputParser } from "@langchain/core/output_parsers";
 
@@ -9,12 +9,15 @@ export async function POST(req: Request) {
     const transcript = body.transcript; // 클라이언트에서 보낸 수업 텍스트
 
     if (!transcript) {
-      return NextResponse.json({ error: 'Transcript is required' }, { status: 400 });
+      return NextResponse.json(
+        { error: "Transcript is required" },
+        { status: 400 }
+      );
     }
 
-    const model = new ChatOpenAI({
-      openAIApiKey: process.env.OPENAI_API_KEY,
-      modelName: "gpt-4o",
+    const model = new ChatGoogleGenerativeAI({
+      apiKey: process.env.GOOGLE_API_KEY,
+      model : "models/gemini-2.5-pro",
       temperature: 0.1,
     });
 
@@ -36,9 +39,11 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json({ report });
-
   } catch (error) {
     console.error(error);
-    return NextResponse.json({ error: 'Failed to generate report' }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to generate report" },
+      { status: 500 }
+    );
   }
 }
