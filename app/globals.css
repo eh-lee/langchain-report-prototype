@@ -145,3 +145,42 @@ hr {
   background-color: #e0e0e0;
   margin: 40px 0;
 }
+/* 기존 CSS 아래에 추가 */
+.transcript-list {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 10px 20px;
+  margin-top: 30px;
+}
+
+.transcript-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.transcript-item:last-child {
+  border-bottom: none;
+}
+
+.transcript-item span {
+  font-size: 1.1em;
+}
+
+.transcript-item button {
+  width: auto;
+  padding: 8px 16px;
+  font-size: 0.9em;
+  font-weight: normal;
+  margin: 0;
+  flex-shrink: 0; /* 버튼 크기 줄어들지 않게 */
+}
+
+.transcript-item button.view-button {
+  background-color: #28a745;
+}
+.transcript-item button.view-button:hover {
+  background-color: #218838;
+}

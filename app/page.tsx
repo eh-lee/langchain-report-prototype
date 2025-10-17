@@ -1,140 +1,120 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
-// API 응답 데이터의 타입을 정의합니다. (API의 zodSchema와 일치)
+// The types defined for our data structures
 interface ReportData {
-  learningMetrics: {
-    [key: string]: {
-      score: number;
-      briefing: string;
-    };
-  };
-  classSummary: {
-    goal: string;
-    review: string;
-    newContent: string;
-  };
+  learningMetrics: { [key: string]: { score: number; briefing: string; } };
+  classSummary: { goal: string; review: string; newContent: string; };
   keyContents: string;
   finalComment: string;
 }
 
-// 별점 표시를 위한 간단한 컴포넌트
-const StarRating = ({ score }: { score: number }) => {
-  const fullStars = Math.floor(score);
-  const halfStar = score % 1 !== 0;
-  const emptyStars = 5 - fullStars - (halfStar ? 1 : 0);
-  return (
-    <div style={{ color: '#f5b327', fontSize: '24px' }}>
-      {'★'.repeat(fullStars)}
-      {halfStar && '½'}
-      {'☆'.repeat(emptyStars)}
-      <span style={{ color: '#000', fontSize: '16px', marginLeft: '8px' }}>({score}/5.0)</span>
-    </div>
-  );
-};
+interface ApiTranscript {
+  id: string;
+  title: string;
+  date: string;
+}
 
-// 메인 페이지 컴포넌트
+type TranscriptStatus = 'idle' | 'loading' | 'generated';
+interface Transcript extends ApiTranscript {
+  status: TranscriptStatus;
+  reportData?: ReportData;
+}
+
 export default function Home() {
-  const [reportData, setReportData] = useState<ReportData | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [transcripts, setTranscripts] = useState<Transcript[]>([]);
+  const [isLoadingList, setIsLoadingList] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const handleGenerateReport = async () => {
-    setIsLoading(true);
+  useEffect(() => {
+    const fetchTranscripts = async () => {
+      try {
+        const response = await fetch('/api/fireflies/transcripts');
+        if (!response.ok) throw new Error('Fireflies 대화 목록을 불러오지 못했습니다.');
+        
+        const data: ApiTranscript[] = await response.json();
+
+        // ⭐️ FIX: Explicitly type the 'initialTranscripts' variable as Transcript[]
+        const initialTranscripts: Transcript[] = data.map((t) => ({ ...t, status: 'idle' }));
+        setTranscripts(initialTranscripts);
+
+      } catch (err) {
+        if (err instanceof Error) setError(err.message);
+      } finally {
+        setIsLoadingList(false);
+      }
+    };
+    fetchTranscripts();
+  }, []);
+
+  const handleGenerateReport = async (transcriptId: string) => {
+    setTranscripts(prev => prev.map(t => t.id === transcriptId ? { ...t, status: 'loading' } : t));
     setError(null);
-    setReportData(null);
 
     try {
-      const response = await fetch('/심지혁_전재한_AP_Cal.json');
-      if (!response.ok) throw new Error('심지혁_전재한_AP_Cal.json 파일을 찾을 수 없습니다.');
-      const transcript = await response.json();
-
-      const apiResponse = await fetch('/api/generate-report', {
+      const response = await fetch('/api/generate-report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transcript }),
+        body: JSON.stringify({ transcriptId, studentName: "David Shim" }),
       });
 
-      if (!apiResponse.ok) {
-        const errorData = await apiResponse.json();
-        throw new Error(errorData.error || 'API에서 오류가 발생했습니다.');
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.details || '리포트 생성에 실패했습니다.');
       }
+      
+      const report: ReportData = await response.json();
 
-      const data: ReportData = await apiResponse.json();
-      setReportData(data);
-    
-    // ⭐️ 이 부분이 수정되었습니다 ⭐️
+      setTranscripts(prev => prev.map(t => 
+        t.id === transcriptId ? { ...t, status: 'generated', reportData: report } : t
+      ));
+
     } catch (err) {
-      console.error("리포트 생성 실패:", err);
-      // err가 Error 인스턴스인지 확인하여 안전하게 message 속성에 접근합니다.
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError("알 수 없는 오류가 발생했습니다.");
-      }
-    } finally {
-      setIsLoading(false);
+      if (err instanceof Error) setError(err.message);
+      setTranscripts(prev => prev.map(t => t.id === transcriptId ? { ...t, status: 'idle' } : t));
     }
   };
 
-  const metricTitles: { [key: string]: string } = {
-    homeworkCompletion: "숙제 진행도",
-    classAttitude: "수업 태도",
-    classAchievement: "수업 성취도",
-    participation: "수업 참여도",
+  const handleViewReport = (transcriptId: string) => {
+    const transcript = transcripts.find(t => t.id === transcriptId);
+    if (transcript && transcript.reportData) {
+      sessionStorage.setItem(`report_${transcriptId}`, JSON.stringify(transcript.reportData));
+      window.open(`/report/${transcriptId}`, '_blank');
+    }
   };
 
   return (
     <main>
-      <h1>학습 리포트 생성 프로토타입 🤖</h1>
-      <p>아래 버튼을 누르면 심지혁 학생과 전재한 선생님이 진행한 AP Calculus 수업에 대한 리포트를 생성합니다.</p>
+      <h1>Fireflies.ai 학습 리포트 생성기 🚀</h1>
       
-      <button onClick={handleGenerateReport} disabled={isLoading}>
-        {isLoading ? "리포트 생성 중..." : "예시 리포트 생성"}
-      </button>
-
-      {isLoading && <div className="loading">리포트를 작성하고 있습니다...</div>}
       {error && <div className="error-box">오류 발생: {error}</div>}
 
-      {reportData && (
-        <div className="report-container text-gray-900">
-          <h2>📊 학습 지표</h2>
-          {Object.entries(reportData.learningMetrics).map(([key, value]) => (
-            <div className="metric-item" key={key}>
-              <h3>{metricTitles[key] || key}</h3>
-              <StarRating score={value.score} />
-              <p>{value.briefing}</p>
+      <div className="transcript-list">
+        <h2>대화 목록</h2>
+        {isLoadingList ? (
+          <p>Fireflies.ai에서 대화 목록을 불러오는 중입니다...</p>
+        ) : (
+          transcripts.map(transcript => (
+            <div key={transcript.id} className="transcript-item">
+              <span>{transcript.title}</span>
+              {transcript.status === 'idle' && (
+                <button onClick={() => handleGenerateReport(transcript.id)}>
+                  리포트 생성
+                </button>
+              )}
+              {transcript.status === 'loading' && (
+                <button disabled>생성 중...</button>
+              )}
+              {transcript.status === 'generated' && (
+                <button className="view-button" onClick={() => handleViewReport(transcript.id)}>
+                  리포트 보기
+                </button>
+              )}
             </div>
-          ))}
-          
-          <hr/>
-
-          <h2>📝 수업 요약</h2>
-          <div className="summary-item">
-            <h3>오늘 수업 목표</h3>
-            <p>{reportData.classSummary.goal}</p>
-          </div>
-          <div className="summary-item">
-            <h3>오늘 복습한 내용</h3>
-            <p>{reportData.classSummary.review}</p>
-          </div>
-          <div className="summary-item">
-            <h3>오늘 새로 학습한 내용</h3>
-            <p>{reportData.classSummary.newContent}</p>
-          </div>
-          
-          <hr/>
-          
-          <h2>📖 수업의 주요 내용</h2>
-          <p>{reportData.keyContents}</p>
-          
-          <hr/>
-          
-          <h2>⭐ 총평</h2>
-          <p>{reportData.finalComment}</p>
-        </div>
-      )}
+          ))
+        )}
+      </div>
     </main>
   );
 }
