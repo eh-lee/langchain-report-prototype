@@ -1,103 +1,140 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useState } from "react";
+
+// API 응답 데이터의 타입을 정의합니다. (API의 zodSchema와 일치)
+interface ReportData {
+  learningMetrics: {
+    [key: string]: {
+      score: number;
+      briefing: string;
+    };
+  };
+  classSummary: {
+    goal: string;
+    review: string;
+    newContent: string;
+  };
+  keyContents: string;
+  finalComment: string;
+}
+
+// 별점 표시를 위한 간단한 컴포넌트
+const StarRating = ({ score }: { score: number }) => {
+  const fullStars = Math.floor(score);
+  const halfStar = score % 1 !== 0;
+  const emptyStars = 5 - fullStars - (halfStar ? 1 : 0);
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+    <div style={{ color: '#f5b327', fontSize: '24px' }}>
+      {'★'.repeat(fullStars)}
+      {halfStar && '½'}
+      {'☆'.repeat(emptyStars)}
+      <span style={{ color: '#000', fontSize: '16px', marginLeft: '8px' }}>({score}/5.0)</span>
     </div>
+  );
+};
+
+// 메인 페이지 컴포넌트
+export default function Home() {
+  const [reportData, setReportData] = useState<ReportData | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleGenerateReport = async () => {
+    setIsLoading(true);
+    setError(null);
+    setReportData(null);
+
+    try {
+      const response = await fetch('/심지혁_전재한_AP_Cal.json');
+      if (!response.ok) throw new Error('심지혁_전재한_AP_Cal.json 파일을 찾을 수 없습니다.');
+      const transcript = await response.json();
+
+      const apiResponse = await fetch('/api/generate-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transcript }),
+      });
+
+      if (!apiResponse.ok) {
+        const errorData = await apiResponse.json();
+        throw new Error(errorData.error || 'API에서 오류가 발생했습니다.');
+      }
+
+      const data: ReportData = await apiResponse.json();
+      setReportData(data);
+    
+    // ⭐️ 이 부분이 수정되었습니다 ⭐️
+    } catch (err) {
+      console.error("리포트 생성 실패:", err);
+      // err가 Error 인스턴스인지 확인하여 안전하게 message 속성에 접근합니다.
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("알 수 없는 오류가 발생했습니다.");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const metricTitles: { [key: string]: string } = {
+    homeworkCompletion: "숙제 진행도",
+    classAttitude: "수업 태도",
+    classAchievement: "수업 성취도",
+    participation: "수업 참여도",
+  };
+
+  return (
+    <main>
+      <h1>학습 리포트 생성 프로토타입 🤖</h1>
+      <p>아래 버튼을 누르면 심지혁 학생과 전재한 선생님이 진행한 AP Calculus 수업에 대한 리포트를 생성합니다.</p>
+      
+      <button onClick={handleGenerateReport} disabled={isLoading}>
+        {isLoading ? "리포트 생성 중..." : "예시 리포트 생성"}
+      </button>
+
+      {isLoading && <div className="loading">리포트를 작성하고 있습니다...</div>}
+      {error && <div className="error-box">오류 발생: {error}</div>}
+
+      {reportData && (
+        <div className="report-container text-gray-900">
+          <h2>📊 학습 지표</h2>
+          {Object.entries(reportData.learningMetrics).map(([key, value]) => (
+            <div className="metric-item" key={key}>
+              <h3>{metricTitles[key] || key}</h3>
+              <StarRating score={value.score} />
+              <p>{value.briefing}</p>
+            </div>
+          ))}
+          
+          <hr/>
+
+          <h2>📝 수업 요약</h2>
+          <div className="summary-item">
+            <h3>오늘 수업 목표</h3>
+            <p>{reportData.classSummary.goal}</p>
+          </div>
+          <div className="summary-item">
+            <h3>오늘 복습한 내용</h3>
+            <p>{reportData.classSummary.review}</p>
+          </div>
+          <div className="summary-item">
+            <h3>오늘 새로 학습한 내용</h3>
+            <p>{reportData.classSummary.newContent}</p>
+          </div>
+          
+          <hr/>
+          
+          <h2>📖 수업의 주요 내용</h2>
+          <p>{reportData.keyContents}</p>
+          
+          <hr/>
+          
+          <h2>⭐ 총평</h2>
+          <p>{reportData.finalComment}</p>
+        </div>
+      )}
+    </main>
   );
 }
